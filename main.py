@@ -40,7 +40,7 @@ def task_1_2():
         plt.show()
 
 def task_1_3():
-    beta, N, logger, iterations = 1, 100, 0, 10
+    beta, N, logger, iterations = 3, 100, 0, 10
     alphas = np.logspace(-1, 2, 10) # we try to compute these 1k vals, see how long it takes. Edit: a minute or so.
     gg = Graph.GraphGenerator()
     clustering_coeffs, ASPs = [], []
