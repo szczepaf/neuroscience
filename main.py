@@ -6,10 +6,11 @@ import matplotlib.patches as mpatches
 from matplotlib.colors import LogNorm, Normalize
 from mpl_toolkits.mplot3d import Axes3D
 from matplotlib import cm
+import sa_multimodal as sa
+import seaborn as sns
 
 
 import Graph
-
 
 
 
@@ -546,4 +547,87 @@ def task_3_2_Vertes():
 
 
 
-task_3_2_Vertes()
+def symmetry():
+    gg = Graph.GraphGenerator()
+    # create the optimal KH network
+    KH = gg.Kaiser_and_Hilgetag(alpha=3.16, beta=0.31, N=82)
+    # create the optimal vertes network
+    V, _ = gg.Vertes(alpha=8.685, N=82, density=0.183)
+    # make it undirected
+    V = nx.from_numpy_array(V, create_using=nx.DiGraph).to_undirected()
+    # into a matrix
+    V_matrix = nx.to_numpy_array(V)
+    
+    # load the mouse network
+    A = np.load("mouse_V1_adjacency_matrix.npy")
+    
+
+    G = nx.from_numpy_array(A, create_using=nx.DiGraph)
+    largest_nodes = max(nx.strongly_connected_components(G), key=len)
+    G = G.subgraph(largest_nodes).copy()
+    # make it undirected
+    G = G.to_undirected()
+    # turn it into a matrix
+    M = nx.to_numpy_array(G)
+
+    
+
+    # create an erdos renyi graph with the same density
+    #ER
+    ER = nx.gnm_random_graph(n=82, m=G.number_of_edges())
+    ER_matrix = nx.to_numpy_array(ER)
+
+    steps = 30000
+    _, KH_energy = sa.annealing(KH, steps=steps)
+    _, V_energy = sa.annealing(V_matrix)
+    _, M_energy = sa.annealing(M)
+    _, ER_energy = sa.annealing(ER_matrix)
+
+    print(f"KH: {KH_energy}")
+    print(f"V: {V_energy}")
+    print(f"M: {M_energy}")
+    print(f"ER: {ER_energy}")
+
+    row = {
+        "steps": steps,
+        "KH_energy": KH_energy,
+        "V_energy": V_energy,
+        "M_energy": M_energy,
+        "ER_energy": ER_energy,
+    }
+    import csv, os
+    with open("symmetry.csv", "a", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=list(row.keys()))
+        writer.writerow(row)
+
+def plot_symmetry_violins(csv_path="symmetry.csv"):
+    import pandas as pd
+    import seaborn as sns
+    import matplotlib.pyplot as plt
+
+    df = pd.read_csv(csv_path)
+
+    cols = ["KH", "V", "M", "ER"]
+    missing = [c for c in cols if c not in df.columns]
+    if missing:
+        raise ValueError(f"Missing columns in {csv_path}: {missing}")
+
+    long = df[cols].melt(var_name="model", value_name="symmetry")
+    long["symmetry"] = pd.to_numeric(long["symmetry"], errors="coerce")
+    long = long.dropna(subset=["symmetry"])
+
+    order = ["KH", "V", "M", "ER"]
+    label_map = {"KH": "KH", "V": "Vertes", "M": "Mouse", "ER": "ER"}
+
+    long["model"] = pd.Categorical(long["model"], categories=order, ordered=True)
+    long["model_label"] = long["model"].map(label_map)
+
+    plt.figure(figsize=(8, 4))
+    sns.violinplot(data=long, x="model_label", y="symmetry", inner="quartile", cut=0)
+    plt.xlabel("")
+    plt.ylabel("Symmetry (energy)")
+    plt.title("Symmetry distributions")
+    plt.tight_layout()
+    plt.show()
+
+plot_symmetry_violins()
